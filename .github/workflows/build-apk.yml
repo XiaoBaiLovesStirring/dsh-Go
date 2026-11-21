@@ -6,9 +6,26 @@ on:
     branches: [mod/ssh-apk]
 
 jobs:
+  runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the arm64 runtime
+        run: runtime/build-runtime.sh arm64-v8a
+      - name: Check the bundle
+        run: python3 -I tooling/check_runtime_bundle.py arm64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runtime-arm64-v8a
+          path: runtime/out/arm64-v8a
+          compression-level: 0
+          if-no-files-found: error
+
   apk:
+    needs: runtime
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -22,6 +39,11 @@ jobs:
           flutter-version: '3.47.7'
           channel: stable
           cache: true
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: runtime-arm64-v8a
+          path: runtime/out/arm64-v8a
 
       - name: Use the upstream Gradle distribution
         run: |
