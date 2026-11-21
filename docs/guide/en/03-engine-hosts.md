@@ -97,7 +97,7 @@ On launch, the app reconnects to the host you used last. To start on this phone 
 
 ## Add an SSH host
 
-The host needs SSH enabled and DSH installed (`npm i -g @deepseek-ai/dsh`).
+The host needs SSH enabled. DSH can be installed there already (`npm i -g @deepseek-ai/dsh`), or leave **Install dsh automatically** on and the app installs it with the host's own npm the first time the start command can't find it — the host's npm registry and settings are used, a permission failure retries into `~/.local`, and every failure shows the install log. The first install may take a minute or two depending on the network.
 
 1. On the remote hosts page, tap **Add SSH host**.
 2. Enter the **Host** and **Username**. **Port** defaults to 22. The name is optional.
@@ -109,6 +109,8 @@ The host needs SSH enabled and DSH installed (`npm i -g @deepseek-ai/dsh`).
 In managed mode, testing starts or reuses DSH on the host, and it keeps running afterwards. **Attach only** opens an SSH tunnel to the specified port on remote `127.0.0.1`. It never discovers instances, starts, stops or restarts DSH, or reads/writes managed state files. Start the instance yourself first and keep it running. If connection fails, check the port and token; the app never restarts it as a repair. The token stays in secure storage on this phone, like the SSH password and private key.
 
 Managed mode refuses to replace a live instance whose start command differs or launch log is missing. A rejected token or refused reused port never authorizes a restart either. Check the settings or use **Attach only** first. If you really intend to replace the app-recorded instance, choose **Restart managed DSH** in the DSH section of Edit host and confirm. This may interrupt other clients and active chats; normal **Test connection** never performs it. Confirmed dead managed processes can still be started automatically.
+
+**Install dsh automatically** applies to managed mode with the default start command. A custom start command is never touched. The toggle is in the DSH section of the host form.
 
 **SSH compression** is on by default, negotiating compression after authentication. Unsupported servers continue uncompressed. Turn it off in the host form if needed; save and establish a new SSH connection to apply.
 

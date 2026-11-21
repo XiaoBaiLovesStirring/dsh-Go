@@ -28190,6 +28190,24 @@ abstract class L10n {
   /// **'默认开启；与服务器协商认证后压缩，不支持时使用未压缩传输。'**
   String get remoteSshCompressionHelp;
 
+  /// No description provided for @remoteAutoInstallDsh.
+  ///
+  /// In zh, this message translates to:
+  /// **'自动安装 dsh'**
+  String get remoteAutoInstallDsh;
+
+  /// No description provided for @remoteAutoInstallDshHelp.
+  ///
+  /// In zh, this message translates to:
+  /// **'主机上没有 dsh 时，用主机自己的 npm 全局安装；没有 Node.js 会直接说明，不会静默失败。主机自己配置的 npm 镜像会被沿用。'**
+  String get remoteAutoInstallDshHelp;
+
+  /// No description provided for @remoteErrDshNoNpm.
+  ///
+  /// In zh, this message translates to:
+  /// **'主机上没有 npm，先在主机上安装 Node.js，或在启动命令里填 dsh 的完整路径'**
+  String get remoteErrDshNoNpm;
+
   /// No description provided for @remoteRestartManaged.
   ///
   /// In zh, this message translates to:
@@ -30605,7 +30623,7 @@ abstract class L10n {
   /// No description provided for @remoteSshInstallCommand.
   ///
   /// In zh, this message translates to:
-  /// **'还没装 DSH？在主机上运行 {command}'**
+  /// **'还没装 DSH？开着「自动安装 dsh」时 App 会替你在主机上运行 {command}'**
   String remoteSshInstallCommand(String command);
 
   /// Under the DSH Remote card; project is the upstream GitHub project (liguobao/ds-harness-remote), drawn as a link.

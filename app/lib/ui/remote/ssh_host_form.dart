@@ -56,6 +56,7 @@ class _SshHostFormPageState extends ConsumerState<SshHostFormPage> with FieldPas
   late final _remotePort = TextEditingController(text: '${widget.existing?.remotePort ?? 3080}');
   late SshDshMode _dshMode = widget.existing?.dshMode ?? SshDshMode.managed;
   late bool _compression = widget.existing?.compression ?? true;
+  late bool _autoInstall = widget.existing?.autoInstallDsh ?? true;
 
   late SshAuthMethod _auth = widget.existing?.auth ?? SshAuthMethod.password;
   late String? _keyType = widget.existing?.hostKeyType;
@@ -113,6 +114,7 @@ class _SshHostFormPageState extends ConsumerState<SshHostFormPage> with FieldPas
     'remotePort': _remotePort.text,
     'attachToken': _attachToken.text,
     'compression': _compression,
+    'autoInstallDsh': _autoInstall,
     'keyType': _keyType,
     'keyFingerprint': _keyFingerprint,
     'keyFor': _keyFor,
@@ -249,6 +251,7 @@ class _SshHostFormPageState extends ConsumerState<SshHostFormPage> with FieldPas
       dshMode: _dshMode,
       remotePort: remotePort ?? 3080,
       compression: _compression,
+      autoInstallDsh: _autoInstall,
       launchCommand: _command.text.trim().isEmpty ? defaultDshLaunchCommand : _command.text.trim(),
       workingDirectory: _cwd.text.trim().isEmpty ? null : _cwd.text.trim(),
       hostKeyType: keyValid ? _keyType : null,
@@ -721,6 +724,13 @@ class _SshHostFormPageState extends ConsumerState<SshHostFormPage> with FieldPas
                     ),
                   ],
                 ),
+                if (_dshMode == SshDshMode.managed)
+                  SettingsSwitchTile(
+                    title: l10n.remoteAutoInstallDsh,
+                    subtitle: l10n.remoteAutoInstallDshHelp,
+                    value: _autoInstall,
+                    onChanged: (v) => setState(() => _autoInstall = v),
+                  ),
                 SettingsSwitchTile(
                   title: l10n.remoteSshCompression,
                   subtitle: l10n.remoteSshCompressionHelp,

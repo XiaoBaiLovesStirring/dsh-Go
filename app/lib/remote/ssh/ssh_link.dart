@@ -260,6 +260,7 @@ class SshHostLink implements HostLink {
           launchCommand: _config.launchCommand,
           workingDirectory: _config.workingDirectory,
           environment: remoteEnvironment,
+          autoInstall: _config.autoInstallDsh,
         ).ensureRunning(
           forceRestart: restart,
           onDetail: (d) => at(HostLinkStep.startDsh, detail: d),

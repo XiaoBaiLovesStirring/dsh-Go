@@ -15321,6 +15321,15 @@ class L10nZh extends L10n {
   String get remoteSshCompressionHelp => '默认开启；与服务器协商认证后压缩，不支持时使用未压缩传输。';
 
   @override
+  String get remoteAutoInstallDsh => '自动安装 dsh';
+
+  @override
+  String get remoteAutoInstallDshHelp => '主机上没有 dsh 时，用主机自己的 npm 全局安装；没有 Node.js 会直接说明，不会静默失败。主机自己配置的 npm 镜像会被沿用。';
+
+  @override
+  String get remoteErrDshNoNpm => '主机上没有 npm，先在主机上安装 Node.js，或在启动命令里填 dsh 的完整路径';
+
+  @override
   String get remoteRestartManaged => '重启托管 DSH';
 
   @override
@@ -16677,7 +16686,7 @@ class L10nZh extends L10n {
 
   @override
   String remoteSshInstallCommand(String command) {
-    return '还没装 DSH？在主机上运行 $command';
+    return '还没装 DSH？开着「自动安装 dsh」时 App 会替你在主机上运行 $command';
   }
 
   @override

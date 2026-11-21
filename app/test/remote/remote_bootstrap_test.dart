@@ -85,6 +85,36 @@ DSHAPP url dsh web: http://127.0.0.1:51234/?token=launch-tok
       );
     });
 
+    test('start output: no npm points at Node.js instead of another npm command', () {
+      expect(
+        () => RemoteDshBootstrap.parseStart(
+          const RemoteExecResult(127, 'DSHAPP home /h\nDSHAPP nonpm\nDSHAPP nodsh\n', ''),
+        ),
+        throwsA(
+          isA<HostLinkError>()
+              .having((e) => e.kind, 'kind', HostLinkErrorKind.dshNotFound)
+              .having((e) => e.message, 'message', contains('Node.js')),
+        ),
+      );
+    });
+
+    test('start output: the install log reaches the error detail', () {
+      expect(
+        () => RemoteDshBootstrap.parseStart(
+          const RemoteExecResult(
+            127,
+            'DSHAPP installing\nDSHAPP installfail 243\nDSHAPP ilog npm error EACCES: permission denied\nDSHAPP nodsh\n',
+            '',
+          ),
+        ),
+        throwsA(
+          isA<HostLinkError>()
+              .having((e) => e.kind, 'kind', HostLinkErrorKind.dshNotFound)
+              .having((e) => e.detail ?? '', 'detail', contains('EACCES')),
+        ),
+      );
+    });
+
     test('start output: a custom command that is not found names the command', () {
       expect(
         () => RemoteDshBootstrap.parseStart(
@@ -144,6 +174,24 @@ DSHAPP url dsh web: http://127.0.0.1:51234/?token=launch-tok
       expect(script, contains('dsh web --host 127.0.0.1 --port 0 --no-open'));
       expect(script, contains('nohup'));
       expect(script, contains(r'$HOME/.dsh-app-remote'));
+    });
+
+    test('auto-install is opt-in and never replaces a custom command', () {
+      final off = RemoteDshBootstrap(LocalProcessShell()).startScript();
+      expect(off, isNot(contains('install -g')));
+      expect(off, contains('DSHAPP nodsh'));
+
+      final on = RemoteDshBootstrap(LocalProcessShell(), autoInstall: true).startScript();
+      expect(on, contains('npm install -g @deepseek-ai/dsh'));
+      expect(on, contains(r'--prefix "$HOME/.local"'));
+      expect(on, contains('DSHAPP nonpm'));
+
+      final custom = RemoteDshBootstrap(
+        LocalProcessShell(),
+        launchCommand: '/opt/dsh web',
+        autoInstall: true,
+      ).startScript();
+      expect(custom, isNot(contains('install -g')));
     });
   });
 
@@ -254,6 +302,28 @@ DSHAPP url dsh web: http://127.0.0.1:51234/?token=launch-tok
         bootstrap().ensureRunning(),
         throwsA(isA<HostLinkError>().having((e) => e.kind, 'kind', HostLinkErrorKind.dshNotFound)),
       );
+    });
+
+    test('a missing dsh is installed with the host npm when the host allows it', () async {
+      File('${bin.path}/dsh').deleteSync();
+      final npm = File('${bin.path}/npm')
+        ..writeAsStringSync('''#!/bin/sh
+mkdir -p "\$HOME/.local/bin"
+cat > "\$HOME/.local/bin/dsh" <<'XEOF'
+$_fakeDsh
+XEOF
+chmod +x "\$HOME/.local/bin/dsh"
+printf '%s\n' "\$*" >> "\$HOME/install-args.txt"
+''');
+      Process.runSync('chmod', ['+x', npm.path]);
+      final endpoint = await RemoteDshBootstrap(
+        LocalProcessShell(environment: {...env, 'FAKE_DSH_MODE': 'fast'}),
+        autoInstall: true,
+        startTimeout: const Duration(seconds: 8),
+      ).ensureRunning();
+      expect(endpoint.dshPath, '${home.path}/.local/bin/dsh');
+      expect(File('${home.path}/install-args.txt').readAsStringSync(), contains('install -g @deepseek-ai/dsh'));
+      expect(endpoint.port, 41234);
     });
 
     test('a crashing dsh reports its log', () async {

@@ -81,12 +81,17 @@ class RemoteDshBootstrap {
     String launchCommand = defaultDshLaunchCommand,
     this.workingDirectory,
     this.environment = const {},
+    this.autoInstall = false,
     this.startTimeout = const Duration(seconds: 60),
   }) : launchCommand = launchCommand.trim().isEmpty ? defaultDshLaunchCommand : launchCommand.trim();
 
   final RemoteShell shell;
   final String launchCommand;
   final String? workingDirectory;
+
+  /// Install `dsh` with the host's npm when the default command cannot find it
+  /// (the person can leave this off in the host form).
+  final bool autoInstall;
 
   /// Extra variables exported before anything runs (tests isolate `HOME` and
   /// `DSH_HOME` this way; advanced users could add PATH tweaks).
@@ -125,7 +130,10 @@ class RemoteDshBootstrap {
 
   Future<RemoteDshEndpoint> start({bool forceRestart = false}) async {
     final runner = shell;
-    final timeout = startTimeout + const Duration(seconds: 20);
+    // A global npm install runs before the launch line: give it its own budget
+    // so a slow registry is not mistaken for a DSH that never starts.
+    final installBudget = autoInstall ? const Duration(minutes: 4) : Duration.zero;
+    final timeout = startTimeout + installBudget + const Duration(seconds: 20);
     final result = runner is RemoteBootstrapShell
         ? await runner.runBootstrap(startScript(forceRestart: forceRestart), timeout: timeout)
         : await runner.run(startScript(forceRestart: forceRestart), timeout: timeout);
@@ -213,21 +221,67 @@ ours() {
 
   String stopScript() => '${_prelude()}${_stopOld()}true\n';
 
-  /// Looks for `dsh` where npm, nvm, volta, bun, pnpm and Homebrew put it,
-  /// since a non-interactive SSH shell often lacks the PATH from `~/.bashrc`.
-  static const _dshSearch = r'''
-if ! command -v dsh >/dev/null 2>&1; then
-  F=""
+  /// Appends the directories npm, nvm, volta, bun, pnpm and Homebrew install
+  /// into, because a non-interactive SSH shell often lacks the PATH from
+  /// `~/.bashrc`. Appending keeps the account's own PATH precedence. Done in
+  /// the main shell, not a subshell, so `dsh`'s `#!/usr/bin/env node` also
+  /// finds the node next to it.
+  static const _pathSetup = r'''
+_addpaths() {
   for c in "$HOME/.local/bin" "$HOME/.npm-global/bin" "$HOME/.npm/bin" "$HOME/.volta/bin" "$HOME/.bun/bin" \
            "$HOME/.local/share/pnpm" "$HOME/Library/pnpm" /usr/local/bin /opt/homebrew/bin \
            "$HOME"/.nvm/versions/node/*/bin "$HOME"/.local/share/fnm/node-versions/*/installation/bin; do
-    if [ -x "$c/dsh" ]; then F="$c"; fi
+    if [ -d "$c" ]; then
+      case ":$PATH:" in *":$c:"*) ;; *) PATH="$PATH:$c" ;; esac
+    fi
   done
-  if [ -n "$F" ]; then PATH="$F:$PATH"; export PATH; fi
-fi
-if ! command -v dsh >/dev/null 2>&1; then printf 'DSHAPP nodsh\n'; exit 127; fi
-printf 'DSHAPP dsh %s\n' "$(command -v dsh)"
+  export PATH
+}
+_addpaths
 ''';
+
+  /// Global install with the host's own npm: its configured registry is
+  /// inherited, and a permission failure retries into `~/.local` instead of
+  /// asking for sudo. `$D/install.log` keeps the output for the UI.
+  static const _dshInstall = r'''
+  if command -v npm >/dev/null 2>&1; then
+    printf 'DSHAPP installing\n'
+    npm install -g PKG >>"$D/install.log" 2>&1
+    RC=$?
+    if [ $RC -ne 0 ]; then
+      printf 'DSHAPP installretry\n'
+      npm install -g PKG --prefix "$HOME/.local" >>"$D/install.log" 2>&1
+      RC=$?
+    fi
+    if [ $RC -ne 0 ]; then
+      printf 'DSHAPP installfail %s\n' "$RC"
+      tail -n 20 "$D/install.log" 2>/dev/null | sed 's/^/DSHAPP ilog /'
+    fi
+  else
+    printf 'DSHAPP nonpm\n'
+  fi
+  _addpaths
+''';
+
+  static const _dshPackage = '@deepseek-ai/dsh';
+
+  /// Resolves `dsh`, installing it with the host's npm when [autoInstall]
+  /// allows it. Prints `DSHAPP dsh <path>` on success; `DSHAPP nodsh` and exits
+  /// 127 when nothing can be resolved, after `DSHAPP nonpm` if npm is missing
+  /// too.
+  String _dshSetup({required bool autoInstall}) {
+    final b = StringBuffer(_pathSetup);
+    if (autoInstall) {
+      b
+        ..writeln('if ! command -v dsh >/dev/null 2>&1; then')
+        ..write(_dshInstall.replaceAll('PKG', _dshPackage))
+        ..writeln('fi');
+    }
+    b
+      ..writeln(r'''if ! command -v dsh >/dev/null 2>&1; then printf 'DSHAPP nodsh\n'; exit 127; fi''')
+      ..writeln(r'''printf 'DSHAPP dsh %s\n' "$(command -v dsh)"''');
+    return b.toString();
+  }
 
   String startScript({bool forceRestart = false}) {
     final seconds = startTimeout.inSeconds.clamp(5, 600);
@@ -244,7 +298,7 @@ printf 'DSHAPP dsh %s\n' "$(command -v dsh)"
   if [ -n "$P" ] && ours "$P"; then printf 'DSHAPP shared\n'; exit 73; fi
 fi''');
     }
-    if (_defaultCommand) b.write(_dshSearch);
+    if (_defaultCommand) b.write(_dshSetup(autoInstall: autoInstall));
     if (cwd != null && cwd.isNotEmpty) {
       b.writeln('cd ${remotePathExpr(cwd)} 2>/dev/null || printf \'$_tag nocwd\\n\'');
     }
@@ -316,6 +370,7 @@ fi''');
     int? pid;
     String? url;
     var noDsh = false;
+    var noNpm = false;
     var exited = false;
     var timedOut = false;
     final log = <String>[];
@@ -333,11 +388,14 @@ fi''');
           throw _sharedInstanceError();
         case 'nodsh':
           noDsh = true;
+        case 'nonpm':
+          noNpm = true;
         case 'exited':
           exited = true;
         case 'timeout':
           timedOut = true;
         case 'log':
+        case 'ilog':
           log.add(value);
       }
     }
@@ -346,6 +404,13 @@ fi''');
       return RemoteDshEndpoint(port: parsed.baseUri.port, token: parsed.token, pid: pid, home: home, dshPath: dsh);
     }
     final tail = redactTokens(log.where((l) => l.trim().isNotEmpty).join('\n')).trim();
+    if (noDsh && noNpm && !customCommand) {
+      throw HostLinkError(
+        HostLinkErrorKind.dshNotFound,
+        appL10n.remoteErrDshNoNpm,
+        detail: [appL10n.remoteStartCommandExample, if (tail.isNotEmpty) tail].join('\n'),
+      );
+    }
     if (noDsh || (exited && _looksNotFound(tail))) {
       throw HostLinkError(
         HostLinkErrorKind.dshNotFound,

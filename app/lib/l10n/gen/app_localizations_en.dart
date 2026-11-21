@@ -16116,6 +16116,17 @@ class L10nEn extends L10n {
       'On by default. Negotiate compression after authentication; use uncompressed transport if unsupported.';
 
   @override
+  String get remoteAutoInstallDsh => 'Install dsh automatically';
+
+  @override
+  String get remoteAutoInstallDshHelp =>
+      'When the host has no dsh, install it globally with the host’s own npm. Without Node.js the app says so instead of failing silently; the host’s own npm registry is kept.';
+
+  @override
+  String get remoteErrDshNoNpm =>
+      'The host has no npm. Install Node.js there, or enter the full path to dsh as the start command.';
+
+  @override
   String get remoteRestartManaged => 'Restart managed DSH';
 
   @override
@@ -17565,7 +17576,7 @@ class L10nEn extends L10n {
 
   @override
   String remoteSshInstallCommand(String command) {
-    return 'DSH not installed? Run $command on the host.';
+    return 'DSH not installed? With Install dsh automatically on, the app runs $command on the host for you.';
   }
 
   @override

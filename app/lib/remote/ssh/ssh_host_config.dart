@@ -23,6 +23,7 @@ class SshHostConfig {
     this.dshMode = SshDshMode.managed,
     this.remotePort = 3080,
     this.compression = true,
+    this.autoInstallDsh = true,
     this.workingDirectory,
     this.hostKeyType,
     this.hostKeyFingerprint,
@@ -44,6 +45,10 @@ class SshHostConfig {
 
   /// Negotiate delayed SSH compression when supported by the server.
   final bool compression;
+
+  /// Install `dsh` with the host's own npm when the default start command
+  /// cannot find it, instead of stopping at "dsh isn't installed".
+  final bool autoInstallDsh;
 
   /// Shell command that starts DSH's web server on the remote. dsh-app appends
   /// `--host 127.0.0.1 --port 0 --no-open`.
@@ -79,6 +84,7 @@ class SshHostConfig {
     SshDshMode? dshMode,
     int? remotePort,
     bool? compression,
+    bool? autoInstallDsh,
     String? Function()? workingDirectory,
     String? Function()? hostKeyType,
     String? Function()? hostKeyFingerprint,
@@ -95,6 +101,7 @@ class SshHostConfig {
       dshMode: dshMode ?? this.dshMode,
       remotePort: remotePort ?? this.remotePort,
       compression: compression ?? this.compression,
+      autoInstallDsh: autoInstallDsh ?? this.autoInstallDsh,
       workingDirectory: workingDirectory != null ? workingDirectory() : this.workingDirectory,
       hostKeyType: hostKeyType != null ? hostKeyType() : (moved ? null : this.hostKeyType),
       hostKeyFingerprint: hostKeyFingerprint != null ? hostKeyFingerprint() : (moved ? null : this.hostKeyFingerprint),
@@ -112,6 +119,7 @@ class SshHostConfig {
     'dshMode': dshMode.name,
     'remotePort': remotePort,
     'compression': compression,
+    'autoInstallDsh': autoInstallDsh,
     if (workingDirectory != null) 'workingDirectory': workingDirectory,
     if (hostKeyType != null) 'hostKeyType': hostKeyType,
     if (hostKeyFingerprint != null) 'hostKeyFingerprint': hostKeyFingerprint,
@@ -143,6 +151,7 @@ class SshHostConfig {
       dshMode: raw['dshMode'] == 'attachOnly' ? SshDshMode.attachOnly : SshDshMode.managed,
       remotePort: remotePort is int && remotePort > 0 && remotePort < 65536 ? remotePort : 3080,
       compression: raw['compression'] is bool ? raw['compression'] as bool : true,
+      autoInstallDsh: raw['autoInstallDsh'] is bool ? raw['autoInstallDsh'] as bool : true,
       hostKeyType: raw['hostKeyType'] as String?,
       hostKeyFingerprint: raw['hostKeyFingerprint'] as String?,
     );
@@ -167,6 +176,7 @@ class SshHostConfig {
       other.dshMode == dshMode &&
       other.remotePort == remotePort &&
       other.compression == compression &&
+      other.autoInstallDsh == autoInstallDsh &&
       other.workingDirectory == workingDirectory &&
       other.hostKeyType == hostKeyType &&
       other.hostKeyFingerprint == hostKeyFingerprint;
@@ -174,7 +184,7 @@ class SshHostConfig {
   @override
   int get hashCode =>
       Object.hash(id, name, host, port, user, auth, launchCommand, dshMode, remotePort, compression,
-          workingDirectory, hostKeyType, hostKeyFingerprint);
+          autoInstallDsh, workingDirectory, hostKeyType, hostKeyFingerprint);
 }
 
 /// The secret material for one SSH host, loaded from the [SecretStore].
